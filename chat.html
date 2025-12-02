@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Ollama Chat – Private & Local</title>
+
+  <!-- Vue 3 CDN -->
+  <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+  <!-- Axios for HTTP -->
+  <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+
+  <style>
+    :root {
+      --bg: #f8f9fa;
+      --text: #212529;
+      --user-bg: #007bff;
+      --ai-bg: #343a40;
+      --input-bg: white;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #121212;
+        --text: #e0e0e0;
+        --user-bg: #0d6efd;
+        --ai-bg: #212529;
+        --input-bg: #1e9ecef;
+      }
+    }
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+    .chat-container {
+      flex: 1;
+      overflow-y: auto;
+      padding: 1rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+      max-width: 800px;
+      margin: 0 auto;
+      width: 100%;
+    }
+    .message {
+      max-width: 80%;
+      padding: 0.8rem 1.2rem;
+      border-radius: 18px;
+      line-height: 1.5;
+      word-wrap: break-word;
+    }
+    .user {
+      align-self: flex-end;
+      background: var(--user-bg);
+      color: white;
+      border-bottom-right-radius: 4px;
+    }
+    .ai {
+      align-self: flex-start;
+      background: var(--ai-bg);
+      color: white;
+      border-bottom-left-radius: 4px;
+    }
+    .input-area {
+      padding: 1rem;
+      background: var(--bg);
+      border-top: 1px solid #444;
+      max-width: 800px;
+      margin: 0 auto;
+      width: 100%;
+    }
+    textarea {
+      width: 100%;
+      padding: 1rem;
+      border: 1px solid #555;
+      border-radius: 12px;
+      background: var(--input-bg);
+      color: var(--text);
+      font-size: 1rem;
+      resize: none;
+    }
+    button {
+      margin-top: 0.5rem;
+      padding: 0.7rem 1.5rem;
+      background: #007bff;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+    }
+    button:disabled { opacity: 0.6; cursor: not-allowed; }
+    .typing {
+      font-style: italic;
+      opacity: 0.7;
+    }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <div class="chat-container" ref="chatContainer">
+      <div v-for="(msg, idx) in messages" :key="idx" :class="['message', msg.role]">
+        {{ msg.content }}
+      </div>
+      <div v-if="isTyping" class="message ai typing">● ● ●</div>
+    </div>
+
+    <div class="input-area">
+      <textarea
+        v-model="input"
+        @keydown.enter.prevent="sendMessage"
+        placeholder="Ask me anything..."
+        rows="1"
+        :disabled="isTyping"
+      ></textarea>
+      <button @click="sendMessage" :disabled="isTyping || !input.trim()">
+        {{ isTyping ? 'Thinking...' : 'Send' }}
+      </button>
+    </div>
+  </div>
+
+  <script>
+    const { createApp, ref, onMounted, nextTick } = Vue;
+
+    createApp({
+      setup() {
+        const messages = ref([]);
+        const input = ref('');
+        const isTyping = ref(false);
+        const chatContainer = ref(null);
+
+        const scrollToBottom = () => {
+          nextTick(() => {
+            chatContainer.value.scrollTop = chatContainer.value.scrollHeight;
+          });
+        };
+
+        const sendMessage = async () => {
+          if (!input.value.trim() || isTyping.value) return;
+
+          const userMessage = { role: 'user', content: input.value.trim() };
+          messages.value.push(userMessage);
+          input.value = '';
+          isTyping.value = true;
+          scrollToBottom();
+
+          try {
+            const res = await fetch('http://127.0.0.1:8000/v1/chat/completions', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ messages: messages.value })
+            });
+
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+            // This part works because FastAPI sends Server-Sent Events (SSE)
+            let aiMessage = { role: 'ai', content: '' };
+            messages.value.push(aiMessage);
+
+            const reader = res.body
+            .pipeThrough(new TextDecoderStream())
+            .getReader();
+
+            try {
+              while (true) {
+                const { value, done } = await reader.read();
+                if (done) break;
+
+                const lines = value
+                  .split('\n')
+                  .filter(line => line.startsWith('data: '));
+
+                for (const line of lines) {
+                  if (line === 'data: [DONE]') continue;
+
+                  try {
+                    const json = JSON.parse(line.slice(6));
+                    const content = json.choices?.[0]?.delta?.content;
+
+                    if (content) {
+                      aiMessage.content += content;
+                      scrollToBottom();
+                    }
+                  } catch (e) {
+                    console.error("JSON parse error:", e);
+                  }
+                }
+              }
+            } finally {
+              isTyping.value = false;
+            }
+
+        } catch (err) {
+          console.error(err);
+          isTyping.value = false;
+        }
+
+        // end of sendMessage
+        };
+
+        // Optional: Welcome message (mounted once when component is created)
+        onMounted(() => {
+          messages.value.push({
+            role: 'ai',
+            content: 'Hello! I am your private Ollama assistant. Ask me anything.'
+          });
+        });
+
+        return { messages, input, isTyping, sendMessage, chatContainer };
+      }
+    }).mount('#app');
+  </script>
+</body>
+</html>
