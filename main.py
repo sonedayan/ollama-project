@@ -7,7 +7,6 @@ import json
 from dotenv import load_dotenv
 
 
-
 load_dotenv()
 
 app = FastAPI(title="Ollama FastAPI Streaming Chat", version="1.0")
@@ -21,7 +20,7 @@ app.add_middleware(
 )
 
 # Change the model name as needed
-chat = OllamaChat(model="gpt-oss:120b-cloud")   # ← or "gemma2:2b", "llama3.2:3b", etc.
+chat = OllamaChat(model="gpt-oss:120b-cloud") 
 
 class Message(BaseModel):
     role: str
