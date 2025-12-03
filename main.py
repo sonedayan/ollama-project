@@ -1,25 +1,3 @@
-# import os
-# from ollama import Client
-# from dotenv import load_dotenv
-
-# load_dotenv()
-
-# # Cloud endpoint + your API key
-# client = Client(
-#     host="https://ollama.com",  # Ollama Cloud base URL
-#     headers={'Authorization': 'Bearer ' + os.environ.get('OLLAMA_API_KEY')}
-# )
-
-# messages = [
-#     {"role": "user", "content": "Why is the sky blue? Explain in simple terms."}
-# ]
-
-# # Now it works! (Use a cloud model like gpt-oss:120b-cloud)
-# for part in client.chat('gpt-oss:120b-cloud', messages=messages, stream=True):
-#     print(part['message']['content'], end='', flush=True)
-# print()  # New line at end
-
-# main.py
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -36,13 +14,13 @@ app = FastAPI(title="Ollama FastAPI Streaming Chat", version="1.0")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],        # ← Allows any origin (file://, localhost, etc.)
+    allow_origins=["*"],        
     allow_credentials=True,
-    allow_methods=["*"],        # ← Allows OPTIONS, POST, GET, etc.
-    allow_headers=["*"],        # ← Allows Content-Type, Authorization, etc.
+    allow_methods=["*"],
+    allow_headers=["*"],     
 )
 
-# Change model here once
+# Change the model name as needed
 chat = OllamaChat(model="gpt-oss:120b-cloud")   # ← or "gemma2:2b", "llama3.2:3b", etc.
 
 class Message(BaseModel):

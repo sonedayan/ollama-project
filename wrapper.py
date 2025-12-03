@@ -1,4 +1,3 @@
-# wrapper.py
 import tiktoken
 import os
 from openai import OpenAI
@@ -13,7 +12,7 @@ class OllamaChat:
         self.model = model
         self.client = OpenAI(
             base_url="https://ollama.com/v1",
-            api_key=os.getenv('OLLAMA_API_KEY') # anything works
+            api_key=os.getenv('OLLAMA_API_KEY') 
         )
         # Safe tokenizer for all Ollama models
         try:
